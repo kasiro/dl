@@ -1,0 +1,4 @@
+name = "DL"
+grammar = "dl"
+path_suffixes = ["dl"]
+line_comments = ["# "]

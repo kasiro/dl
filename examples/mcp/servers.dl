@@ -1,0 +1,43 @@
+( $ ) => {
+    let createServer = import ./create-server.dl;
+    let timeout = import ./default-timeout.dl;
+
+    deepwiki: createServer('deepwiki', {
+        type: "remote";
+        url: "https://mcp.deepwiki.com/mcp";
+        timeout: timeout;
+    });
+    sequential-thinking: createServer('sequential-thinking', {
+        type: "local";
+        command: [
+            "/home/kasiro/.npm-global/bin/mcp-server-sequential-thinking"
+        ];
+        timeout: timeout;
+    });
+    context7: createServer('context7', {
+        type: "remote";
+        url: "https://mcp.context7.com/mcp";
+        headers: {
+            Authorization: "Bearer ctx7sk-418a5f6a-2b9c-4caa-94e2-573821193500";
+        };
+        timeout: timeout;
+    });
+    lightpanda: createServer('lightpanda', {
+        type: "local";
+        command: [
+            "/home/kasiro/.npm-global/bin/lightpanda-mcp"
+        ];
+        environment: {
+            LIGHTPANDA_DISABLE_TELEMETRY: "true";
+        };
+        timeout: {
+            catalog: 60000;
+            execution: 60000;
+        };
+    });
+    deploychan: createServer('deploychan', {
+        type: "remote";
+        url: "https://mcp.deploychan.webcam/mcp";
+        timeout: timeout;
+    });
+}

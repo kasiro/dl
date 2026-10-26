@@ -1,0 +1,5 @@
+() => {
+    let createmodel = import ./func/createmodel.dl;
+
+    createmodel("deepseek/deepseek-v4.1-flash");
+}

@@ -1,0 +1,12 @@
+( $, name, npm, port ) => {
+    let createprovider = import ./createprovider.dl;
+
+    createprovider(name, {
+        npm: npm;
+        port: port;
+        options: {
+            toolCallFallback: "auto";
+            useCompletionUrls: true;
+        }
+    });
+}

@@ -1,0 +1,11 @@
+( $ ) => {
+    let localproxy = import ../providers/entries/localproxy.dl;
+    let deepseek = import ../providers/entries/deepseek-proxy.dl;
+    let zenfree = import ../providers/entries/zen-free.dl;
+
+    providers: {
+        ...localproxy();
+        ...deepseek();
+        ...zenfree();
+    };
+}

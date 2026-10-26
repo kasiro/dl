@@ -1,0 +1,5 @@
+( $ ) => {
+    let agents = import ../agents/agents.dl;
+
+    ...agents();
+}

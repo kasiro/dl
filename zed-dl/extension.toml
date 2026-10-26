@@ -1,0 +1,16 @@
+id = "dl-language"
+name = "DL Language Support"
+description = "Syntax highlighting and language support for DL configuration language"
+version = "0.1.0"
+schema_version = 1
+authors = ["DL Project"]
+repository = "https://github.com/dl-project/dl"
+
+[grammars.dl]
+repository = "file:///home/kasiro/Документы/dl/zed-dl/tree-sitter-dl"
+rev = "03b6cb0c65b21036c2827160947607094a48f961"
+
+[language_servers.dl-lsp]
+command = "uv"
+args = ["run", "dl-lsp"]
+languages = ["dl"]

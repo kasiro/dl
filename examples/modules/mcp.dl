@@ -1,0 +1,5 @@
+( $ ) => {
+    let servers = import ../mcp/servers.dl;
+
+    mcp.servers: servers();
+}

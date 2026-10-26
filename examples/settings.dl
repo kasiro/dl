@@ -1,0 +1,12 @@
+( $ ) => {
+    $.schema: "https://opencode.ai/config.json";
+    $.builds: [
+        {
+            source: "./configuration.dl";
+            output: "./opencode.json";
+            schema: "https://opencode.ai/config.json";
+        }
+    ];
+    $.npm.openaicomp: "@ai-sdk/openai-compatible";
+    $.npm.voidrot: "@voidrot/openai-featherless-compatible";
+}

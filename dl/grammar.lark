@@ -1,0 +1,180 @@
+// DL v2.1 — грамматика (LALR)
+//
+// Структура:
+//   1. Документ: config / module / schema
+//   2. Параметры
+//   3. Блоки и инструкции
+//   4. Выражения
+//   5. Схема: классы, поля, типы
+//   6. Терминалы
+
+start: config_doc
+     | module_doc
+     | schema_doc
+
+// ─────────────────────────────── 1. Документ ───────────────────────────────
+
+config_doc: FORMAT param_block "=>" schema_name block  -> config_with_schema
+          | FORMAT param_block "=>" block              -> config_plain
+          | FORMAT "=>" schema_name block              -> config_bare_with_schema
+          | FORMAT "=>" block                          -> config_bare
+
+module_doc: param_block "=>" block
+
+schema_doc: "schema" "=>" schema_block
+
+schema_name: IDENT
+
+// ─────────────────────────────── 2. Параметры ──────────────────────────────
+
+param_block: "(" param_list? ")"
+param_list: param ("," param)*
+
+param: DOLLAR              -> param_context
+     | IDENT               -> param_plain
+     | IDENT "?"           -> param_optional
+     | IDENT ":" expr      -> param_default
+
+// ───────────────────────── 3. Блоки и инструкции ───────────────────────────
+//
+// Необязательная `;` перед `}` решена праворекурсивным списком:
+//   stmt_list: stmt ";" stmt_list | stmt ";" | stmt
+// После `;` смотрится следующий токен: `}` — это завершающая `;`,
+// начало инструкции — продолжение списка. Конфликтов нет.
+
+block: "{" "}"
+     | "{" stmt_list "}"
+
+stmt_list: stmt ";" stmt_list   -> stmts_more
+         | stmt ";"             -> stmts_trailing
+         | stmt                 -> stmts_single
+
+stmt: let_stmt
+    | spread_stmt
+    | field_stmt
+    | call_stmt
+
+let_stmt: "let" IDENT "=" expr
+spread_stmt: "..." expr
+
+field_stmt: field_path ":" expr       -> field
+          | field_path "=" expr       -> field
+          | field_path "?" ":" expr   -> field_optional
+
+call_stmt: call
+
+field_path: (DOLLAR | IDENT | STRING) ("." path_seg)*
+path_seg: IDENT
+        | STRING
+
+// ─────────────────────────────── 4. Выражения ──────────────────────────────
+
+expr: STRING          -> string_lit
+    | NUMBER          -> int_lit
+    | FLOAT           -> float_lit
+    | "true"          -> true_lit
+    | "false"         -> false_lit
+    | "null"          -> null_lit
+    | array
+    | object
+    | call
+    | import_expr
+    | ref
+
+// Запятые в массиве необязательны; элементы могут разделяться пробелом.
+array: "[" "]"                       -> array_empty
+     | "[" expr_list "]"             -> array
+
+expr_list: expr "," expr_list   -> expr_list_more
+         | expr expr_list       -> expr_list_space
+         | expr ","             -> expr_list_trailing
+         | expr                 -> expr_list_single
+
+object: block
+
+// Вызов: позиционные аргументы через запятую; объект последним аргументом
+// трактуется как именованные аргументы (разбор — в трансформере).
+call: IDENT "(" ")"                     -> call_empty
+    | IDENT "(" args ")"                -> call
+
+args: expr "," args     -> args_more
+    | expr ","          -> args_trailing
+    | expr              -> args_single
+
+import_expr: "import" PATH
+
+ref: ref_path
+ref_path: (DOLLAR | IDENT) ("." path_seg)*
+
+// ───────────────────────── 5. Схема: классы и типы ─────────────────────────
+
+schema_block: "{" class_decl* "}"
+
+class_decl: "class" IDENT "{" class_field* "}" ";"?        -> class_plain
+          | doc "class" IDENT "{" class_field* "}" ";"?    -> class_doc
+
+class_field: field_name ":" type ["=" expr] ";"?             -> class_field_plain
+           | field_name "?" ":" type ["=" expr] ";"?         -> class_field_optional
+           | doc field_name ":" type ["=" expr] ";"?         -> class_field_doc_plain
+           | doc field_name "?" ":" type ["=" expr] ";"?     -> class_field_doc_optional
+
+obj_field: field_name ":" type ["=" expr] ";"?               -> obj_field_plain
+         | field_name "?" ":" type ["=" expr] ";"?           -> obj_field_optional
+         | doc field_name ":" type ["=" expr] ";"?           -> obj_field_doc_plain
+         | doc field_name "?" ":" type ["=" expr] ";"?       -> obj_field_doc_optional
+
+doc: DOC_COMMENT+
+
+field_name: IDENT
+          | STRING
+
+type: type_atom ("|" type_atom)*
+
+type_atom: "string"    -> t_string
+         | "integer"   -> t_integer
+         | "number"    -> t_number
+         | "float"     -> t_float
+         | "boolean"   -> t_boolean
+         | "null"      -> t_null
+         | "any"       -> t_any
+         | array_type
+         | map_type
+         | enum_type
+         | object_type
+         | named_type
+
+array_type: "[" type "]"
+map_type: "map" "<" type ">"
+
+enum_type: "enum" "{" enum_val ("|" enum_val)* "}"
+enum_val: STRING   -> enum_string
+        | NUMBER   -> enum_number
+        | "true"   -> enum_true
+        | "false"  -> enum_false
+        | "null"   -> enum_null
+
+object_type: "{" obj_field* "}"
+
+named_type: IDENT
+
+// ─────────────────────────────── 6. Терминалы ──────────────────────────────
+
+FORMAT: "json" | "toml" | "yaml"
+DOLLAR: "$"
+
+// Путь импорта: ./x.dl, ../x.dl, /abs/x.dl; в сегментах допустима
+// интерполяция {expr}. Звёздочка * разрешена только в последнем сегменте
+// для glob-импорта (например, ./dir/*.dl). Разбор на части — в трансформере.
+PATH: /(?:\.{1,2})?\/[A-Za-z0-9_.\-{}\/@*]*\.dl/
+
+IDENT: /[A-Za-z_][A-Za-z0-9_-]*/
+STRING: /"([^"\\]|\\.)*"/ | /'([^'\\]|\\.)*'/
+NUMBER: /-?[0-9]+/
+FLOAT: /-?[0-9]+\.[0-9]+/
+
+DOC_COMMENT: /\/\/\/[^\n]*/
+COMMENT: /\/\/(?!\/)[^\n]*/
+
+%import common.WS
+%ignore WS
+%ignore COMMENT

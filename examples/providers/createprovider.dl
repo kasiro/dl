@@ -1,0 +1,11 @@
+( $, name, npm, port, options: {} ) => {
+    let makeoptions = import ./models/func/makeoptions.dl;
+
+    npm: npm;
+    name: "{name}";
+    options: {
+        ...makeoptions(port);
+        ...options;
+    };
+    models: import ./models/{name}.dl;
+}

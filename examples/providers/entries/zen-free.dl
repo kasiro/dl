@@ -1,0 +1,8 @@
+( $ ) => {
+    let createprovider = import ../createprovider.dl;
+
+    zen-free: createprovider('zen-free', {
+        npm: $.npm.openaicomp;
+        port: 9877;
+    });
+}

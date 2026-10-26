@@ -1,0 +1,5 @@
+; Brackets for DL language
+
+["{" "}"]
+["[" "]"]
+["(" ")"]

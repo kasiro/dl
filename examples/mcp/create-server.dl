@@ -1,0 +1,8 @@
+( $, name, type, url?, command?, headers?, environment?, timeout ) => {
+    type: type;
+    url?: url;
+    command?: command;
+    headers?: headers;
+    environment?: environment;
+    timeout: timeout;
+}

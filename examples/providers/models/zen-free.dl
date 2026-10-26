@@ -1,0 +1,14 @@
+() => {
+    let createmodel = import ./func/createmodel.dl;
+
+    createmodel("muse-spark-1.3-contributor-free");
+    createmodel("muse-spark-1.2-contributor-free");
+    createmodel("mimo-v2.5-free");
+    createmodel("mimo-v2.6-flash-free");
+    createmodel("ling-3.0-flash-fin-free");
+    createmodel("nemotron-3-ultra-free");
+    createmodel("nemotron-3.5-lightning-free");
+    createmodel("big-pickle");
+    createmodel("space-bunny-free");
+    createmodel("deepseek-v4.1-flash-free");
+}

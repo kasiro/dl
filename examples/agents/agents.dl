@@ -1,0 +1,55 @@
+( $ ) => {
+    agent: {
+        title: {
+            model: "opencode/big-pickle";
+        };
+        general: {
+            permission: {
+                edit: {
+                    "*": "allow";
+                };
+                bash: {
+                    "*": "allow";
+                    "*grep*": "deny";
+                    "*find*": "deny";
+                    "*npx*": "deny";
+                    "*npm*": "deny";
+                    "*sqlite*": "ask";
+                };
+                websearch: "deny";
+                webfetch: "deny";
+                skill: {
+                    "agent-delegation": "deny";
+                    "jarvis-cycles": "deny";
+                };
+            };
+            tools: {
+                "glob": false;
+                "grep": false;
+                "sequential-thinking_*": true;
+                "deepwiki_*": true;
+                "context7_*": true;
+                "lightpanda_*": true;
+                "memory_set": false;
+                "memory_replace": false;
+                "memory_list": false;
+            };
+        };
+        explore: {
+            disable: true;
+        };
+    };
+    agents: {
+        jarvis: {
+            permissions: [
+                { action: "edit"; resource: "*"; effect: "deny"; }
+                { action: "shell"; resource: "*"; effect: "deny"; }
+                { action: "websearch"; resource: "*"; effect: "deny"; }
+                { action: "webfetch"; resource: "*"; effect: "deny"; }
+                { action: "deepwiki_*"; resource: "*"; effect: "deny"; }
+                { action: "context7_*"; resource: "*"; effect: "deny"; }
+                { action: "lightpanda_*"; resource: "*"; effect: "deny"; }
+            ];
+        };
+    };
+}
