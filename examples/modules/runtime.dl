@@ -1,9 +1,4 @@
 ( $ ) => {
-    default_agent: "jarvis";
-    share: "disabled";
-    instructions: [
-        "~/.config/opencode/global-rules.md"
-    ];
     "lsp": {};
     "plugin": [
         "opencode-intellisearch",

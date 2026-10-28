@@ -1,5 +1,16 @@
 ( $ ) => {
     agent: {
+        jarvis: {
+            permission: {
+                edit: { "*": "deny"; };
+                bash: { "*": "deny"; };
+                websearch: "deny";
+                webfetch: "deny";
+                "deepwiki_*": "deny";
+                "context7_*": "deny";
+                "lightpanda_*": "deny";
+            };
+        };
         title: {
             model: "opencode/big-pickle";
         };
@@ -37,19 +48,6 @@
         };
         explore: {
             disable: true;
-        };
-    };
-    agents: {
-        jarvis: {
-            permissions: [
-                { action: "edit"; resource: "*"; effect: "deny"; }
-                { action: "shell"; resource: "*"; effect: "deny"; }
-                { action: "websearch"; resource: "*"; effect: "deny"; }
-                { action: "webfetch"; resource: "*"; effect: "deny"; }
-                { action: "deepwiki_*"; resource: "*"; effect: "deny"; }
-                { action: "context7_*"; resource: "*"; effect: "deny"; }
-                { action: "lightpanda_*"; resource: "*"; effect: "deny"; }
-            ];
         };
     };
 }

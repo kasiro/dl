@@ -1,6 +1,6 @@
 {
   "$schema": "https://opencode.ai/config.json",
-  "providers": {
+  "provider": {
     "localproxy": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "localproxy",
@@ -91,60 +91,10 @@
       }
     }
   },
-  "mcp": {
-    "servers": {
-      "deepwiki": {
-        "type": "remote",
-        "url": "https://mcp.deepwiki.com/mcp",
-        "timeout": {
-          "catalog": 120000,
-          "execution": 120000
-        }
-      },
-      "sequential-thinking": {
-        "type": "local",
-        "command": [
-          "/home/kasiro/.npm-global/bin/mcp-server-sequential-thinking"
-        ],
-        "timeout": {
-          "catalog": 120000,
-          "execution": 120000
-        }
-      },
-      "context7": {
-        "type": "remote",
-        "url": "https://mcp.context7.com/mcp",
-        "headers": {
-          "Authorization": "Bearer ctx7sk-418a5f6a-2b9c-4caa-94e2-573821193500"
-        },
-        "timeout": {
-          "catalog": 120000,
-          "execution": 120000
-        }
-      },
-      "lightpanda": {
-        "type": "local",
-        "command": [
-          "/home/kasiro/.npm-global/bin/lightpanda-mcp"
-        ],
-        "environment": {
-          "LIGHTPANDA_DISABLE_TELEMETRY": "true"
-        },
-        "timeout": {
-          "catalog": 60000,
-          "execution": 60000
-        }
-      },
-      "deploychan": {
-        "type": "remote",
-        "url": "https://mcp.deploychan.webcam/mcp",
-        "timeout": {
-          "catalog": 120000,
-          "execution": 120000
-        }
-      }
-    }
-  },
+  "default_agent": "jarvis",
+  "instructions": [
+    "~/.config/opencode/global-rules.md"
+  ],
   "permission": {
     "bash": {
       "*find*": "deny",
@@ -157,7 +107,65 @@
     "grep": "deny",
     "websearch": "deny"
   },
+  "mcp": {
+    "deepwiki": {
+      "type": "remote",
+      "enabled": true,
+      "url": "https://mcp.deepwiki.com/mcp",
+      "timeout": 120000
+    },
+    "sequential-thinking": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "/home/kasiro/.npm-global/bin/mcp-server-sequential-thinking"
+      ],
+      "timeout": 120000
+    },
+    "context7": {
+      "type": "remote",
+      "enabled": true,
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ctx7sk-418a5f6a-2b9c-4caa-94e2-573821193500"
+      },
+      "timeout": 120000
+    },
+    "lightpanda": {
+      "type": "local",
+      "enabled": true,
+      "command": [
+        "/home/kasiro/.npm-global/bin/lightpanda-mcp"
+      ],
+      "environment": {
+        "LIGHTPANDA_DISABLE_TELEMETRY": "true"
+      },
+      "description": "Lightpanda headless browser — быстрый MCP скрапинг",
+      "timeout": 60000
+    },
+    "deploychan": {
+      "type": "remote",
+      "enabled": true,
+      "url": "https://mcp.deploychan.webcam/mcp",
+      "timeout": 120000
+    }
+  },
   "agent": {
+    "jarvis": {
+      "permission": {
+        "edit": {
+          "*": "deny"
+        },
+        "bash": {
+          "*": "deny"
+        },
+        "websearch": "deny",
+        "webfetch": "deny",
+        "deepwiki_*": "deny",
+        "context7_*": "deny",
+        "lightpanda_*": "deny"
+      }
+    },
     "title": {
       "model": "opencode/big-pickle"
     },
@@ -197,52 +205,6 @@
       "disable": true
     }
   },
-  "agents": {
-    "jarvis": {
-      "permissions": [
-        {
-          "action": "edit",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "shell",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "websearch",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "webfetch",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "deepwiki_*",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "context7_*",
-          "resource": "*",
-          "effect": "deny"
-        },
-        {
-          "action": "lightpanda_*",
-          "resource": "*",
-          "effect": "deny"
-        }
-      ]
-    }
-  },
-  "default_agent": "jarvis",
-  "share": "disabled",
-  "instructions": [
-    "~/.config/opencode/global-rules.md"
-  ],
   "lsp": {},
   "plugin": [
     "opencode-intellisearch",

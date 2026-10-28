@@ -4,11 +4,13 @@ json( $ ) => Config {
     let permissions = import ./modules/permissions.dl;
     let agents = import ./modules/agents.dl;
     let runtime = import ./modules/runtime.dl;
+    let def = import ./modules/def.dl;
 
     "$schema": "{$.schema}";
     ...providers();
-    ...mcp();
+    ...def();
     ...permissions();
+    ...mcp();
     ...agents();
     ...runtime();
 }

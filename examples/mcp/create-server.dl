@@ -1,8 +1,10 @@
-( $, name, type, url?, command?, headers?, environment?, timeout ) => {
+( $, name, type, url?, command?, headers?, environment?, timeout, description? ) => {
     type: type;
+    enabled: true;
     url?: url;
     command?: command;
     headers?: headers;
     environment?: environment;
+    description?: description;
     timeout: timeout;
 }

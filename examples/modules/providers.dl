@@ -3,7 +3,7 @@
     let deepseek = import ../providers/entries/deepseek-proxy.dl;
     let zenfree = import ../providers/entries/zen-free.dl;
 
-    providers: {
+    provider: {
         ...localproxy();
         ...deepseek();
         ...zenfree();
