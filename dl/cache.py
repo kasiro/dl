@@ -47,9 +47,9 @@ class DiskCache:
         return str(Path(source).resolve())
 
     def _path_for(self, source: Path | str) -> Path:
-        digest = hashlib.sha256(
-            self._source_key(source).encode("utf-8")
-        ).hexdigest()[:16]
+        digest = hashlib.sha256(self._source_key(source).encode("utf-8")).hexdigest()[
+            :16
+        ]
         return self.cache_dir / f"{digest}{SUFFIX}"
 
     # ── чтение ────────────────────────────────────────────────────────────
@@ -106,7 +106,7 @@ class DiskCache:
                 dir=self.cache_dir, prefix=".tmp-", suffix=SUFFIX
             )
             with os.fdopen(handle_fd, "w", encoding="utf-8") as handle:
-                json.dump(payload, handle, ensure_ascii=False)
+                json.dump(payload, handle, ensure_ascii=False, indent=4)
                 handle.flush()
                 os.fsync(handle.fileno())
             os.replace(temp_name, target)

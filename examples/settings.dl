@@ -4,7 +4,6 @@
         {
             source: "./configuration.dl";
             output: "./opencode.json";
-            schema: "https://opencode.ai/config.json";
         }
     ];
     $.npm.openaicomp: "@ai-sdk/openai-compatible";
