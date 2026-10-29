@@ -3,4 +3,5 @@
     instructions: [
         "~/.config/opencode/global-rules.md"
     ];
+    share: "disabled";
 }

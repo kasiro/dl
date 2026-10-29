@@ -95,6 +95,7 @@
   "instructions": [
     "~/.config/opencode/global-rules.md"
   ],
+  "share": "disabled",
   "permission": {
     "bash": {
       "*find*": "deny",
