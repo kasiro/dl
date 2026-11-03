@@ -1,0 +1,8 @@
+( $, name, npm, port, models ) => {
+    npm: npm;
+    name: name;
+    options: {
+        baseURL: "http://localhost:{port}/v1";
+    };
+    models: models;
+}

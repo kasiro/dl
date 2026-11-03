@@ -1,0 +1,10 @@
+( $ ) => {
+    mkDefault: ( $, value ) => {
+        priority: 1000;
+        value: value;
+    };
+    mkForce: ( $, value ) => {
+        priority: 0;
+        value: value;
+    };
+}

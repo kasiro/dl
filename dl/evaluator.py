@@ -1,29 +1,28 @@
-"""Вычисление AST DL v2.1.
+"""Вычисление AST DL v2.2.
 
 Публичный API:
 
-    evaluate(ast, base_dir, context=None) -> dict | Function | dict-schema
+    evaluate(ast, base_dir, context=None) -> Function | dict-schema
     evaluate_file(path, context=None)
     evaluate_settings(ast, base_dir)
     evaluate_settings_file(path)
-    call_value(fn, positional, named, ctx=None, base_dir=None)
+    call_value(fn, positional, named, ctx=None, base_dir=None, config=None)
 
 Семантика (раздел 5–7 спецификации):
 
-* документ ``config`` вычисляется сразу в словарь;
-* документ ``module`` возвращается как :class:`Function` (даже если параметров
-  нет — ``()``);
+* документ ``config`` возвращается как :class:`Function` — вызов явный
+  (модульный режим, :mod:`dl.modules`);
+* документ ``module`` возвращается как :class:`Function`;
 * документ ``schema`` возвращает описание классов для этапа 3;
 * ``$`` (контекст) объявляется только параметром ``$``; обращение к ``$`` без
   него — ``E008``;
+* ``$config`` (конфигурация) — второй специальный параметр: объявляется как
+  ``$config``, значение подставляется неявно при вызове и распространяется
+  по цепочке вызовов; обращение без объявления — ``E008``;
+* ``import`` всегда возвращает :class:`Function` — вызов явный;
 * контекст передаётся неявно по всей цепочке вызовов;
 * блок выполняется сверху вниз: ``let`` — в scope, поля — с ``W001``/``E003``,
   spread и вызовы-инструкции — с переопределением (без конфликта).
-
-Одно уточнение контракта: модуль **без параметров вообще** (``() =>``) при
-импорте вызывается сразу — иначе ``models: import ./models/{name}.dl``
-возвращал бы функцию, а не словарь моделей. Модули с объявленными параметрами
-(в том числе с одним ``$``) остаются значениями-функциями.
 """
 
 from __future__ import annotations
@@ -34,6 +33,7 @@ from pathlib import Path
 from typing import Any
 
 from .errors import (
+    CircularImportError,
     DLContextError,
     GlobParameterizedModule,
     MissingParameterError,
@@ -109,19 +109,34 @@ def _has_context(params: list[dict]) -> bool:
     return any(param["name"] == "$" for param in params)
 
 
+def _has_config(params: list[dict]) -> bool:
+    return any(param["name"] == "$config" for param in params)
+
+
 def _user_params(params: list[dict]) -> list[dict]:
-    """Параметры без ``$`` — они участвуют в позиционном/именованном вызове."""
-    return [param for param in params if param["name"] != "$"]
+    """Параметры без ``$``/``$config`` — участвуют в позиционном/именованном вызове."""
+    return [
+        param
+        for param in params
+        if param["name"] not in ("$", "$config")
+    ]
 
 
 def _lookup_ref(path: list[str], scope: dict, ctx: dict | None) -> Any:
-    """Разрешить путь ``ref``: ``$`` → контекст, иначе — scope."""
+    """Разрешить путь ``ref``: ``$`` → контекст, ``$config`` → конфигурация, иначе — scope."""
     if path[0] == "$":
         if "$" not in scope:
             raise DLContextError(
                 "E008 NoContext: '$' used without context in signature"
             )
         value = scope["$"]
+        rest = path[1:]
+    elif path[0] == "$config":
+        if "$config" not in scope:
+            raise DLContextError(
+                "E008 NoContext: '$config' used without config in signature"
+            )
+        value = scope["$config"]
         rest = path[1:]
     else:
         name = path[0]
@@ -151,6 +166,12 @@ def _lookup_ref(path: list[str], scope: dict, ctx: dict | None) -> Any:
 # Вызовы
 # ---------------------------------------------------------------------------
 
+# Активные вызовы Function (по id объекта): один файл — один объект из кэша
+# resolver'а, поэтому повторный вход в тот же объект — цикл вызовов модулей
+# (E004). Ленивая семантика (тела не выполняются при загрузке) перенесла
+# детекцию циклов из resolver.load в момент вызова.
+_active_calls: set[int] = set()
+
 
 def call_value(
     fn: Function,
@@ -158,16 +179,40 @@ def call_value(
     named: dict[str, Any] | None,
     ctx: dict | None = None,
     base_dir: Path | str | None = None,
+    config: dict | None = None,
 ) -> dict:
     """Вызвать функцию модуля.
 
     ``positional``/``named`` — уже вычисленные значения аргументов.
     ``$`` в именованных аргументах не передаётся: контекст подставляется
     неявно и распространяется по цепочке вызовов.
+    ``$config`` — второй специальный параметр: значение ``config``
+    подставляется неявно (как и ``$``) и распространяется по цепочке
+    вызовов; без значения считается пустым объектом.
     """
     if not isinstance(fn, Function):
         raise ParseError("E006 ParseError: value is not a function")
 
+    if id(fn) in _active_calls:
+        raise CircularImportError(
+            f"E004 CircularImportError: circular module call "
+            f"({fn!r} is already being evaluated)"
+        )
+    _active_calls.add(id(fn))
+    try:
+        return _call_value_inner(fn, positional, named, ctx, base_dir, config)
+    finally:
+        _active_calls.discard(id(fn))
+
+
+def _call_value_inner(
+    fn: Function,
+    positional: list[Any],
+    named: dict[str, Any] | None,
+    ctx: dict | None,
+    base_dir: Path | str | None,
+    config: dict | None,
+) -> dict:
     params = fn.params or []
     rest = _user_params(params)
     scope: dict[str, Any] = {}
@@ -176,6 +221,9 @@ def call_value(
         if ctx is None:
             ctx = {}
         scope["$"] = ctx
+
+    if _has_config(params):
+        scope["$config"] = config if config is not None else {}
 
     # Позиционные — по порядку параметров после `$`.
     if len(positional) > len(rest):
@@ -193,6 +241,10 @@ def call_value(
             if key == "$":
                 raise UnknownParameterError(
                     "E009 UnknownParameter: '$' is passed implicitly"
+                )
+            if key == "$config":
+                raise UnknownParameterError(
+                    "E009 UnknownParameter: '$config' is passed implicitly"
                 )
             param = by_name.get(key)
             if param is None:
@@ -250,6 +302,11 @@ def eval_block(
             path = stmt["path"]
             if path and path[0] == "$":
                 path = ["$", *(interp_segment(s, scope, ctx) for s in path[1:])]
+            elif path and path[0] == "$config":
+                path = [
+                    "$config",
+                    *(interp_segment(s, scope, ctx) for s in path[1:]),
+                ]
             else:
                 path = [interp_segment(segment, scope, ctx) for segment in path]
             if path and path[0] == "$":
@@ -262,6 +319,13 @@ def eval_block(
                         "E008 NoContext: context is not available for writing"
                     )
                 set_path(ctx, path[1:], value)
+            elif path and path[0] == "$config":
+                if "$config" not in scope:
+                    raise DLContextError(
+                        "E008 NoContext: '$config' used without config "
+                        "in signature"
+                    )
+                set_path(scope["$config"], path[1:], value)
             else:
                 set_path(result, path, value)
 
@@ -282,6 +346,11 @@ def eval_block(
                     f"got {type(value).__name__}"
                 )
             deep_merge(result, value)
+
+        elif kind in {"import", "imports"}:
+            # Инструкции импорта обрабатываются на этапе collect
+            # (dl.modules._collect_imports), при вычислении тела — no-op.
+            pass
 
         else:  # pragma: no cover - защита от расширения AST
             raise ParseError(f"E006 ParseError: unknown statement '{kind}'")
@@ -339,7 +408,16 @@ def eval_expr(
             if named_body is not None
             else None
         )
-        return call_value(fn, positional, named, ctx, base_dir)
+        # $config распространяется по цепочке вызовов: если вызывающий
+        # имеет $config в scope, вызываемый получает то же значение.
+        return call_value(
+            fn,
+            positional,
+            named,
+            ctx,
+            base_dir,
+            config=scope.get("$config"),
+        )
 
     if kind == "import":
         path = eval_import_path(node, scope, ctx)
@@ -349,15 +427,27 @@ def eval_expr(
             value = resolve_glob_import(path, base_dir, ctx)
         else:
             value = resolve_import(path, base_dir, ctx)
-        # Модуль без параметров вообще (``() =>``) — значение, а не функция:
-        # так ``models: import ./models/{name}.dl`` даёт словарь моделей.
-        # Модуль с ``$`` остаётся функцией (контекст передаётся при вызове).
-        if isinstance(value, Function) and not value.params:
-            return call_value(value, [], None, ctx, base_dir)
+        # Модуль всегда возвращается как Function — вызов явный
+        # (модульный режим, dl.modules.collect).
         return value
 
     if kind == "ref":
         return _lookup_ref(node["path"], scope, ctx)
+
+    if kind == "merge":
+        left = eval_expr(node["left"], scope, ctx, base_dir)
+        right = eval_expr(node["right"], scope, ctx, base_dir)
+        if not isinstance(left, dict):
+            raise ParseError(
+                f"E006 ParseError: merge left operand must be an object, "
+                f"got {type(left).__name__}"
+            )
+        if not isinstance(right, dict):
+            raise ParseError(
+                f"E006 ParseError: merge right operand must be an object, "
+                f"got {type(right).__name__}"
+            )
+        return deep_merge(left, right)
 
     raise ParseError(f"E006 ParseError: unknown expression '{kind}'")
 
@@ -392,16 +482,20 @@ def evaluate(
 ) -> Any:
     """Вычислить документ DL.
 
-    ``config`` → dict, ``module`` → :class:`Function`, ``schema`` → описание
-    классов (``{"kind": "schema", "classes": [...]}``).
+    ``config`` → :class:`Function` (вызов явный — модульный режим),
+    ``module`` → :class:`Function`, ``schema`` → описание классов
+    (``{"kind": "schema", "classes": [...]}``).
     """
     directory = as_path(base_dir)
     kind = ast.get("kind")
 
     if kind == "config":
         params = ast.get("params") or []
-        fn = Function(params=params, body=ast.get("body") or [], base_dir=directory)
-        return call_value(fn, [], None, context, directory)
+        return Function(
+            params=params,
+            body=ast.get("body") or [],
+            base_dir=directory,
+        )
 
     if kind == "module":
         return Function(
@@ -412,6 +506,17 @@ def evaluate(
 
     if kind == "schema":
         return {"kind": "schema", "classes": list(ast.get("body") or [])}
+
+    if kind == "flake":
+        # Flake-документ: param_block => block
+        # Возвращаем Function с параметрами из сигнатуры
+        # Тело содержит инструкции (imports, outputs, etc.)
+        return Function(
+            params=ast.get("params") or [],
+            body=ast.get("body") or [],
+            base_dir=directory,
+            name="flake",
+        )
 
     raise ParseError(f"E006 ParseError: unknown document kind '{kind}'")
 

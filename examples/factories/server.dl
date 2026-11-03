@@ -1,0 +1,8 @@
+( $, name, type, url: null, command: null, headers: {}, timeout: 120000 ) => {
+    name: name;
+    type: type;
+    url?: url;
+    command?: command;
+    headers?: headers;
+    timeout: timeout;
+}

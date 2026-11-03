@@ -1,0 +1,10 @@
+( $, $config ) => {
+    import ./modules/default.dl;
+
+    outputs: {
+        "opencode.json": {
+            format: "json";
+            value: $config;
+        };
+    };
+}

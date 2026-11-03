@@ -1,0 +1,10 @@
+( $ ) => {
+    mkDefault: {
+        _type: "default";
+        _priority: 0;
+    };
+    mkForce: {
+        _type: "force";
+        _priority: 100;
+    };
+}

@@ -1,3 +1,0 @@
-( $, port, host: "localhost" ) => {
-    baseURL: "http://{host}:{port}/v1";
-}

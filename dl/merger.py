@@ -71,19 +71,89 @@ def merge(base: dict, override: dict, path: str = "") -> dict:
     return result
 
 
+def _is_priority_value(value: Any) -> bool:
+    """Проверить, является ли значение приоритетным объектом.
+
+    Приоритетное значение имеет вид {priority: int, value: any}.
+    """
+    return (
+        isinstance(value, dict)
+        and "priority" in value
+        and "value" in value
+        and isinstance(value["priority"], int)
+    )
+
+
+def _extract_priority_value(value: Any) -> tuple[int, Any] | None:
+    """Извлечь (priority, value) из приоритетного объекта или None.
+
+    Возвращает кортеж (priority, wrapped_value) если value имеет структуру
+    {priority: int, value: any}, иначе None.
+    """
+    if _is_priority_value(value):
+        return (value["priority"], value["value"])
+    return None
+
+
+def _merge_priority_values(
+    base_val: Any,
+    override_val: Any,
+    path: str,
+) -> Any:
+    """Слить два значения с учётом приоритетов.
+
+    Правила:
+    - Если оба значения приоритетные: выигрывает меньший priority (0 > 1000).
+      При равных priority — E003.
+    - Если одно приоритетное, другое обычное: обычное переопределяет (поздний wins).
+    - Если оба обычные: переопределение (поздний wins).
+    - Вложенные объекты сливаются рекурсивно.
+    """
+    base_priority = _extract_priority_value(base_val)
+    override_priority = _extract_priority_value(override_val)
+
+    if base_priority is not None and override_priority is not None:
+        # Оба приоритетные
+        base_prio, base_inner = base_priority
+        override_prio, override_inner = override_priority
+
+        if base_prio < override_prio:
+            # Базовое значение имеет меньший priority (выше приоритет)
+            return _copy_value(base_val)
+        elif override_prio < base_prio:
+            # Переопределяющее значение имеет меньший priority
+            return _copy_value(override_val)
+        else:
+            # Равные priority — конфликт
+            raise ConflictError(
+                f"E003 ConflictError: conflicting priorities at {path}: "
+                f"both have priority {base_prio}"
+            )
+    elif override_priority is not None:
+        # Только override приоритетное — обычное значение переопределяет
+        return _copy_value(override_val)
+    elif base_priority is not None:
+        # Только base приоритетное — переопределяем обычным
+        return _copy_value(override_val)
+    else:
+        # Оба обычные — переопределение
+        return _copy_value(override_val)
+
+
 def deep_merge(target: dict, source: dict, path: str = "") -> dict:
     """Слить ``source`` в ``target`` с переопределением (без W001/E003).
 
     Используется для ``...expr`` и вызовов-инструкций (раздел 6.3).
+    Поддерживает приоритетные значения вида {priority: int, value: any}.
     """
     for key, value in source.items():
         full = _join(path, key)
-        if (
-            key in target
-            and isinstance(target[key], dict)
-            and isinstance(value, dict)
-        ):
-            deep_merge(target[key], value, full)
+        if key in target and isinstance(target[key], dict) and isinstance(value, dict):
+            # Проверяем, не являются ли оба значения приоритетными объектами
+            if _is_priority_value(target[key]) and _is_priority_value(value):
+                target[key] = _merge_priority_values(target[key], value, full)
+            else:
+                deep_merge(target[key], value, full)
         else:
             target[key] = _copy_value(value)
     return target

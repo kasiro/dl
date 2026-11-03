@@ -11,6 +11,5 @@ repository = "file:///home/kasiro/Документы/dl/zed-dl/tree-sitter-dl"
 rev = "03b6cb0c65b21036c2827160947607094a48f961"
 
 [language_servers.dl-lsp]
-command = "uv"
-args = ["run", "dl-lsp"]
-languages = ["dl"]
+name = "DL LSP"
+languages = ["DL"]

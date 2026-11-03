@@ -1,4 +1,4 @@
-// DL v2.1 — грамматика (LALR)
+// DL v2.2 — грамматика (LALR)
 //
 // Структура:
 //   1. Документ: config / module / schema
@@ -9,7 +9,7 @@
 //   6. Терминалы
 
 start: config_doc
-     | module_doc
+     | flake_doc
      | schema_doc
 
 // ─────────────────────────────── 1. Документ ───────────────────────────────
@@ -19,21 +19,31 @@ config_doc: FORMAT param_block "=>" schema_name block  -> config_with_schema
           | FORMAT "=>" schema_name block              -> config_bare_with_schema
           | FORMAT "=>" block                          -> config_bare
 
-module_doc: param_block "=>" block
-
+// Flake-документ: сигнатура функции => блок (как module).
+// Различается в парсере: наличие поля outputs => flake, иначе module.
+flake_doc: param_block "=>" block
 schema_doc: "schema" "=>" schema_block
 
 schema_name: IDENT
+
+// ──────────────────────── Flake: импорты ───────────────────────────────────
+
+import_stmt: import_expr
+imports_stmt: "imports" "[" import_list "]"
+import_list: (import_item (";" import_item)* ";"?)?
+import_item: import_expr
+           | PATH
 
 // ─────────────────────────────── 2. Параметры ──────────────────────────────
 
 param_block: "(" param_list? ")"
 param_list: param ("," param)*
 
-param: DOLLAR              -> param_context
-     | IDENT               -> param_plain
-     | IDENT "?"           -> param_optional
-     | IDENT ":" expr      -> param_default
+param: DOLLAR_CONFIG        -> param_config
+     | DOLLAR               -> param_context
+     | IDENT                -> param_plain
+     | IDENT "?"            -> param_optional
+     | IDENT ":" expr       -> param_default
 
 // ───────────────────────── 3. Блоки и инструкции ───────────────────────────
 //
@@ -53,6 +63,8 @@ stmt: let_stmt
     | spread_stmt
     | field_stmt
     | call_stmt
+    | import_stmt
+    | imports_stmt
 
 let_stmt: "let" IDENT "=" expr
 spread_stmt: "..." expr
@@ -63,23 +75,30 @@ field_stmt: field_path ":" expr       -> field
 
 call_stmt: call
 
-field_path: (DOLLAR | IDENT | STRING) ("." path_seg)*
+field_path: (DOLLAR | DOLLAR_CONFIG | IDENT | STRING) ("." path_seg)*
 path_seg: IDENT
         | STRING
 
 // ─────────────────────────────── 4. Выражения ──────────────────────────────
+//
+// Оператор merge `&` имеет низший приоритет (вычисляется последним).
+// Левая ассоциативность: a & b & c = (a & b) & c.
 
-expr: STRING          -> string_lit
-    | NUMBER          -> int_lit
-    | FLOAT           -> float_lit
-    | "true"          -> true_lit
-    | "false"         -> false_lit
-    | "null"          -> null_lit
-    | array
-    | object
-    | call
-    | import_expr
-    | ref
+expr: merge_expr
+
+merge_expr: primary ("&" primary)* -> merge_expr
+
+primary: STRING          -> string_lit
+       | NUMBER          -> int_lit
+       | FLOAT           -> float_lit
+       | "true"          -> true_lit
+       | "false"         -> false_lit
+       | "null"          -> null_lit
+       | array
+       | object
+       | call
+       | import_expr
+       | ref
 
 // Запятые в массиве необязательны; элементы могут разделяться пробелом.
 array: "[" "]"                       -> array_empty
@@ -94,8 +113,9 @@ object: block
 
 // Вызов: позиционные аргументы через запятую; объект последним аргументом
 // трактуется как именованные аргументы (разбор — в трансформере).
-call: IDENT "(" ")"                     -> call_empty
-    | IDENT "(" args ")"                -> call
+// Поддерживает method call: factory.create(...), $.utils.fn(...)
+call: ref "(" ")"                     -> call_empty
+    | ref "(" args ")"                -> call
 
 args: expr "," args     -> args_more
     | expr ","          -> args_trailing
@@ -104,7 +124,7 @@ args: expr "," args     -> args_more
 import_expr: "import" PATH
 
 ref: ref_path
-ref_path: (DOLLAR | IDENT) ("." path_seg)*
+ref_path: (DOLLAR | DOLLAR_CONFIG | IDENT) ("." path_seg)*
 
 // ───────────────────────── 5. Схема: классы и типы ─────────────────────────
 
@@ -161,6 +181,7 @@ named_type: IDENT
 
 FORMAT: "json" | "toml" | "yaml"
 DOLLAR: "$"
+DOLLAR_CONFIG: "$config"
 
 // Путь импорта: ./x.dl, ../x.dl, /abs/x.dl; в сегментах допустима
 // интерполяция {expr}. Звёздочка * разрешена только в последнем сегменте

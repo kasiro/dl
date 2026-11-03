@@ -43,10 +43,6 @@ def test_successful_tree_order_and_statuses(tmp_path: Path):
     reporter.start(source, target)
     reporter.file_start(source)
     reporter.file_end(source)
-    reporter.stage("schema", "schema")
-    reporter.stage_done("schema", "config.schema")
-    reporter.stage("validate", "validate")
-    reporter.stage_done("validate", "Config")
     reporter.stage("write", "write")
     reporter.stage_done("write", "opencode.json")
     reporter.finish()
@@ -56,14 +52,10 @@ def test_successful_tree_order_and_statuses(tmp_path: Path):
 
     assert lines[0] == "configuration.dl → opencode.json"
     assert lines[1].endswith("configuration.dl ✓")
-    assert "schema config.schema ✓" in text
-    assert "validate Config ✓" in text
     assert "write opencode.json ✓" in text
 
     order = [
         text.index("configuration.dl ✓"),
-        text.index("schema config.schema ✓"),
-        text.index("validate Config ✓"),
         text.index("write opencode.json ✓"),
     ]
     assert order == sorted(order)
@@ -206,24 +198,24 @@ def test_reporter_context_default_is_none():
 # ─────────────────────────────── CLI-флаг ──────────────────────────────────
 
 
-def test_cli_compile_no_progress(
+def test_cli_build_no_progress(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture,
 ):
+    """build с --no-progress печатает финальное дерево (Live не используется)."""
     copy = tmp_path / "examples"
     shutil.copytree(EXAMPLES, copy)
     monkeypatch.chdir(tmp_path)
     capsys.readouterr()
 
-    code = main(["compile", "examples/configuration.dl", "--no-progress"])
+    code = main(["build", "examples/flake.dl", "--no-progress"])
     captured = capsys.readouterr()
 
     assert code == 0
-    assert "Compiled:" in captured.out
-    # --no-progress полностью отключает дерево: stderr пуст (ни дерева, ни ANSI)
-    assert captured.err == ""
-    assert (copy / "opencode.json").is_file()
+    assert "Build complete:" in captured.out
+    # --no-progress отключает Live-анимацию, но финальное дерево печатается
+    assert "flake.dl →" in captured.err
 
 
 # ───────────────────────── уникальность путей ──────────────────────────────

@@ -46,6 +46,14 @@ def write_module(tmp_path: Path, name: str, source: str) -> Path:
     return path
 
 
+def eval_config(path: Path, context: dict | None = None) -> dict:
+    """Вычислить config-документ (evaluate → call_value)."""
+    value = evaluate_file(path, context)
+    if isinstance(value, Function):
+        value = call_value(value, [], None, context, path.parent)
+    return value
+
+
 @pytest.fixture(scope="module")
 def settings_context() -> dict:
     path, ast = load_example("settings.dl")
@@ -53,39 +61,45 @@ def settings_context() -> dict:
 
 
 @pytest.fixture(scope="module")
-def configuration(settings_context: dict) -> dict:
-    return evaluate_example("configuration.dl", settings_context)
+def flake(settings_context: dict) -> dict:
+    from dl.flake import build
+    
+    path = EXAMPLES / "flake.dl"
+    outputs = build(path)
+    # Извлекаем $config из output opencode.json
+    return outputs["opencode.json"].value
 
 
-# ────────────────────────────── 1. configuration ────────────────────────────
+# ────────────────────────────── 1. flake ──────────────────────────────────
 
 
-def test_configuration_structure(configuration: dict) -> None:
-    localproxy = configuration["provider"]["localproxy"]
+def test_flake_structure(flake: dict) -> None:
+    localproxy = flake["providers"]["localproxy"]
     assert localproxy["npm"] == "@ai-sdk/openai-compatible"
     assert localproxy["name"] == "localproxy"
     assert localproxy["options"]["baseURL"] == "http://localhost:9625/v1"
     assert len(localproxy["models"]) == 9
 
-    deepwiki = configuration["mcp"]["servers"]["deepwiki"]
+    deepwiki = flake["mcp"]["servers"]["deepwiki"]
     assert deepwiki["type"] == "remote"
     assert deepwiki["url"] == "https://mcp.deepwiki.com/mcp"
-    assert deepwiki["timeout"] == {"catalog": 120000, "execution": 120000}
+    assert deepwiki["timeout"] == 120000
 
-    permissions = configuration["agents"]["jarvis"]["permissions"]
-    assert permissions[0] == {"action": "edit", "resource": "*", "effect": "deny"}
-    assert len(permissions) == 7
+    # agent.jarvis.permission (не agents)
+    agent_jarvis = flake["agent"]["jarvis"]
+    assert "permission" in agent_jarvis
+    edit_deny = agent_jarvis["permission"]["edit"]["*"]
+    assert edit_deny == "deny"
 
 
 # ───────────────────────────── 2. models/localproxy ─────────────────────────
 
 
 def test_localproxy_models_module() -> None:
-    path, ast = load_example("providers/models/localproxy.dl")
-    value = evaluate(ast, path.parent)
-    assert isinstance(value, Function)
-
-    models = call_value(value, [], None, {})
+    from dl.modules import collect
+    
+    path = EXAMPLES / "providers/models/localproxy.dl"
+    models = collect(path, {})
     assert len(models) == 9
     assert models["free-gemini-2.5-pro"] == {"name": "free-gemini-2.5-pro"}
     assert models["free-gemini-3-flash-preview"] == {
@@ -96,8 +110,8 @@ def test_localproxy_models_module() -> None:
 # ─────────────────────────── 3. опциональные поля ───────────────────────────
 
 
-def test_optional_field_presence(configuration: dict) -> None:
-    servers = configuration["mcp"]["servers"]
+def test_optional_field_presence(flake: dict) -> None:
+    servers = flake["mcp"]
 
     assert servers["deepwiki"]["url"] == "https://mcp.deepwiki.com/mcp"
 
@@ -115,8 +129,8 @@ def test_optional_field_presence(configuration: dict) -> None:
 # ─────────────────────────── 4. deepseek-proxy spread ───────────────────────
 
 
-def test_deepseek_proxy_options(configuration: dict) -> None:
-    proxy = configuration["provider"]["deepseek-proxy"]
+def test_deepseek_proxy_options(flake: dict) -> None:
+    proxy = flake["provider"]["deepseek-proxy"]
     assert proxy["npm"] == "@voidrot/openai-featherless-compatible"
     assert proxy["options"] == {
         "baseURL": "http://localhost:9626/v1",
@@ -134,7 +148,7 @@ def test_deepseek_proxy_options(configuration: dict) -> None:
 def test_conflict_different_values(tmp_path: Path) -> None:
     path = write_module(tmp_path, "conflict.dl", 'json => { a: 1; a: 2; }')
     with pytest.raises(ConflictError) as error:
-        evaluate_file(path)
+        eval_config(path)
     assert "E003" in str(error.value)
 
 
@@ -143,7 +157,7 @@ def test_conflict_dotted_vs_scalar(tmp_path: Path) -> None:
         tmp_path, "dotted.dl", 'json => { a: 1; a.b: 2; }'
     )
     with pytest.raises(ConflictError) as error:
-        evaluate_file(path)
+        eval_config(path)
     assert "E003" in str(error.value)
 
 
@@ -153,7 +167,7 @@ def test_conflict_dotted_vs_scalar(tmp_path: Path) -> None:
 def test_duplicate_same_value_warning(tmp_path: Path, caplog) -> None:
     path = write_module(tmp_path, "duplicate.dl", 'json => { a: 1; a: 1; }')
     with caplog.at_level(logging.WARNING, logger="dl"):
-        result = evaluate_file(path)
+        result = eval_config(path)
     assert result == {"a": 1}
     assert "W001" in caplog.text
     assert "DuplicateKey" in caplog.text
@@ -163,17 +177,18 @@ def test_duplicate_same_value_warning(tmp_path: Path, caplog) -> None:
 
 
 def test_circular_import(tmp_path: Path) -> None:
-    write_module(tmp_path, "a.dl", "json => { x: import ./b.dl; }")
-    write_module(tmp_path, "b.dl", "json => { y: import ./a.dl; }")
+    # Цикл возникает при ЯВНОМ вызове импортов
+    write_module(tmp_path, "a.dl", "json => { let b = import ./b.dl; x: b(); }")
+    write_module(tmp_path, "b.dl", "json => { let a = import ./a.dl; y: a(); }")
     with pytest.raises(CircularImportError) as error:
-        evaluate_file(tmp_path / "a.dl")
+        eval_config(tmp_path / "a.dl")
     assert "E004" in str(error.value)
 
 
 def test_missing_module(tmp_path: Path) -> None:
     path = write_module(tmp_path, "missing.dl", "json => { x: import ./nope.dl; }")
     with pytest.raises(Exception) as error:  # dl.errors.ModuleNotFoundError
-        evaluate_file(path)
+        eval_config(path)
     assert "E002" in str(error.value)
 
 
@@ -186,7 +201,7 @@ def test_missing_required_parameter(tmp_path: Path) -> None:
         tmp_path, "main.dl", "json => { let m = import ./mod.dl; x: m(); }"
     )
     with pytest.raises(MissingParameterError) as error:
-        evaluate_file(path)
+        eval_config(path)
     assert "E010" in str(error.value)
 
 
@@ -198,7 +213,7 @@ def test_unknown_named_parameter(tmp_path: Path) -> None:
         'json => { let m = import ./mod.dl; x: m("a", { bogus: 1; }); }',
     )
     with pytest.raises(UnknownParameterError) as error:
-        evaluate_file(path)
+        eval_config(path)
     assert "E009" in str(error.value)
     assert "bogus" in str(error.value)
 
@@ -222,16 +237,15 @@ def test_let_and_nested_calls(tmp_path: Path) -> None:
         "main.dl",
         'json => { let mid = import ./middle.dl; result: mid("ab"); }',
     )
-    assert evaluate_file(path) == {"result": {"doubled": "abab"}}
+    assert eval_config(path) == {"result": {"doubled": "abab"}}
 
 
 # ────────────────────────── 10. точечная нотация ────────────────────────────
 
 
-def test_mcp_servers_dotted_notation(configuration: dict) -> None:
-    assert "mcp.servers" not in configuration
-    assert isinstance(configuration["mcp"], dict)
-    assert set(configuration["mcp"]["servers"]) == {
+def test_mcp_servers_dotted_notation(flake: dict) -> None:
+    assert isinstance(flake["mcp"], dict)
+    assert set(flake["mcp"]) == {
         "deepwiki",
         "sequential-thinking",
         "context7",
@@ -244,7 +258,7 @@ def test_mcp_servers_dotted_notation(configuration: dict) -> None:
 
 
 def test_settings_context(settings_context: dict) -> None:
-    assert settings_context["builds"][0]["source"] == "./configuration.dl"
+    assert settings_context["builds"][0]["source"] == "./flake.dl"
     assert settings_context["npm"]["openaicomp"] == "@ai-sdk/openai-compatible"
     assert (
         settings_context["npm"]["voidrot"]
@@ -255,7 +269,7 @@ def test_settings_context(settings_context: dict) -> None:
 def test_context_required_for_dollar(tmp_path: Path) -> None:
     path = write_module(tmp_path, "noctx.dl", "json => { a: $.x; }")
     with pytest.raises(DLContextError) as error:
-        evaluate_file(path)
+        eval_config(path)
     assert "E008" in str(error.value)
 
 
@@ -270,7 +284,7 @@ def test_default_used_when_omitted(tmp_path: Path) -> None:
         "main.dl",
         'json => { let f = import ./defaults.dl; a: f("hi"); b: f("hi", { suffix: "?"; }); }',
     )
-    assert evaluate_file(path) == {"a": {"text": "hi!"}, "b": {"text": "hi?"}}
+    assert eval_config(path) == {"a": {"text": "hi!"}, "b": {"text": "hi?"}}
 
 
 def test_context_propagates_through_calls(tmp_path: Path) -> None:
@@ -287,7 +301,7 @@ def test_context_propagates_through_calls(tmp_path: Path) -> None:
         "main.dl",
         'json( $ ) => { let mid = import ./middle.dl; nested: mid(); }',
     )
-    assert evaluate_file(path, {"name": "jarvis"}) == {
+    assert eval_config(path, {"name": "jarvis"}) == {
         "nested": {"from_ctx": "jarvis"}
     }
 
@@ -301,6 +315,6 @@ def test_spread_overrides_without_conflict(tmp_path: Path) -> None:
     path = write_module(
         tmp_path,
         "main.dl",
-        "json => { let base = import ./base.dl; obj: { a: 9; b: 8; ...base; }; }",
+        "json => { let base = import ./base.dl; obj: { a: 9; b: 8; ...base(); }; }",
     )
-    assert evaluate_file(path) == {"obj": {"a": 1, "b": 2}}
+    assert eval_config(path) == {"obj": {"a": 1, "b": 2}}

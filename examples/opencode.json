@@ -1,6 +1,10 @@
 {
-  "$schema": "https://opencode.ai/config.json",
-  "provider": {
+  "schema": "https://opencode.ai/config.json",
+  "npm": {
+    "openaicomp": "@ai-sdk/openai-compatible",
+    "voidrot": "@voidrot/openai-featherless-compatible"
+  },
+  "providers": {
     "localproxy": {
       "npm": "@ai-sdk/openai-compatible",
       "name": "localproxy",
@@ -55,77 +59,41 @@
       "npm": "@ai-sdk/openai-compatible",
       "name": "zen-free",
       "options": {
-        "baseURL": "http://localhost:9877/v1"
+        "baseURL": "http://localhost:9627/v1"
       },
       "models": {
-        "muse-spark-1.3-contributor-free": {
-          "name": "muse-spark-1.3-contributor-free"
-        },
-        "muse-spark-1.2-contributor-free": {
-          "name": "muse-spark-1.2-contributor-free"
-        },
-        "mimo-v2.5-free": {
-          "name": "mimo-v2.5-free"
-        },
-        "mimo-v2.6-flash-free": {
-          "name": "mimo-v2.6-flash-free"
-        },
-        "ling-3.0-flash-fin-free": {
-          "name": "ling-3.0-flash-fin-free"
-        },
-        "nemotron-3-ultra-free": {
-          "name": "nemotron-3-ultra-free"
-        },
-        "nemotron-3.5-lightning-free": {
-          "name": "nemotron-3.5-lightning-free"
+        "deepseek-v4-flash-free": {
+          "name": "deepseek-v4-flash-free"
         },
         "big-pickle": {
           "name": "big-pickle"
         },
-        "space-bunny-free": {
-          "name": "space-bunny-free"
-        },
-        "deepseek-v4.1-flash-free": {
-          "name": "deepseek-v4.1-flash-free"
+        "mimo-v2.6-flash-free": {
+          "name": "mimo-v2.6-flash-free"
         }
       }
     }
   },
-  "default_agent": "jarvis",
-  "instructions": [
-    "~/.config/opencode/global-rules.md"
-  ],
-  "share": "disabled",
-  "permission": {
-    "bash": {
-      "*find*": "deny",
-      "*grep*": "deny",
-      "*npm*": "deny",
-      "*sqlite*": "ask",
-      "*opencode*": "ask"
-    },
-    "glob": "deny",
-    "grep": "deny",
-    "websearch": "deny"
-  },
   "mcp": {
     "deepwiki": {
+      "name": "deepwiki",
       "type": "remote",
-      "enabled": true,
       "url": "https://mcp.deepwiki.com/mcp",
+      "headers": {},
       "timeout": 120000
     },
     "sequential-thinking": {
+      "name": "sequential-thinking",
       "type": "local",
-      "enabled": true,
       "command": [
         "/home/kasiro/.npm-global/bin/mcp-server-sequential-thinking"
       ],
+      "headers": {},
       "timeout": 120000
     },
     "context7": {
+      "name": "context7",
       "type": "remote",
-      "enabled": true,
       "url": "https://mcp.context7.com/mcp",
       "headers": {
         "Authorization": "Bearer ctx7sk-418a5f6a-2b9c-4caa-94e2-573821193500"
@@ -133,94 +101,111 @@
       "timeout": 120000
     },
     "lightpanda": {
+      "name": "lightpanda",
       "type": "local",
-      "enabled": true,
       "command": [
         "/home/kasiro/.npm-global/bin/lightpanda-mcp"
       ],
-      "environment": {
+      "headers": {
         "LIGHTPANDA_DISABLE_TELEMETRY": "true"
       },
-      "description": "Lightpanda headless browser — быстрый MCP скрапинг",
       "timeout": 60000
     },
     "deploychan": {
+      "name": "deploychan",
       "type": "remote",
-      "enabled": true,
       "url": "https://mcp.deploychan.webcam/mcp",
+      "headers": {},
       "timeout": 120000
     }
   },
-  "agent": {
-    "jarvis": {
-      "permission": {
-        "edit": {
-          "*": "deny"
-        },
-        "bash": {
-          "*": "deny"
-        },
-        "websearch": "deny",
-        "webfetch": "deny",
-        "deepwiki_*": "deny",
-        "context7_*": "deny",
-        "lightpanda_*": "deny"
-      }
+  "config": {
+    "permission": {
+      "bash": {
+        "*find*": "deny",
+        "*grep*": "deny",
+        "*npm*": "deny",
+        "*sqlite*": "ask",
+        "*opencode*": "ask"
+      },
+      "glob": "deny",
+      "grep": "deny",
+      "websearch": "deny"
     },
-    "title": {
-      "model": "opencode/big-pickle"
-    },
-    "general": {
-      "permission": {
-        "edit": {
-          "*": "allow"
-        },
-        "bash": {
-          "*": "allow",
-          "*grep*": "deny",
-          "*find*": "deny",
-          "*npx*": "deny",
-          "*npm*": "deny",
-          "*sqlite*": "ask"
-        },
-        "websearch": "deny",
-        "webfetch": "deny",
-        "skill": {
-          "agent-delegation": "deny",
-          "jarvis-cycles": "deny"
+    "agent": {
+      "jarvis": {
+        "permission": {
+          "edit": {
+            "*": "deny"
+          },
+          "bash": {
+            "*": "deny"
+          },
+          "websearch": "deny",
+          "webfetch": "deny",
+          "deepwiki_*": "deny",
+          "context7_*": "deny",
+          "lightpanda_*": "deny"
         }
       },
-      "tools": {
-        "glob": false,
-        "grep": false,
-        "sequential-thinking_*": true,
-        "deepwiki_*": true,
-        "context7_*": true,
-        "lightpanda_*": true,
-        "memory_set": false,
-        "memory_replace": false,
-        "memory_list": false
+      "title": {
+        "model": "opencode/big-pickle"
+      },
+      "general": {
+        "permission": {
+          "edit": {
+            "*": "allow"
+          },
+          "bash": {
+            "*": "allow",
+            "*grep*": "deny",
+            "*find*": "deny",
+            "*npx*": "deny",
+            "*npm*": "deny",
+            "*sqlite*": "ask"
+          },
+          "websearch": "deny",
+          "webfetch": "deny",
+          "skill": {
+            "agent-delegation": "deny",
+            "jarvis-cycles": "deny"
+          }
+        },
+        "tools": {
+          "glob": false,
+          "grep": false,
+          "sequential-thinking_*": true,
+          "deepwiki_*": true,
+          "context7_*": true,
+          "lightpanda_*": true,
+          "memory_set": false,
+          "memory_replace": false,
+          "memory_list": false
+        }
+      },
+      "explore": {
+        "disable": true
       }
     },
-    "explore": {
-      "disable": true
+    "agents": {
+      "default": "general"
+    },
+    "lsp": {},
+    "plugin": [
+      "opencode-intellisearch",
+      "@tarquinen/opencode-dcp@3.1.13",
+      "opencode-agent-memory"
+    ],
+    "compaction": {
+      "auto": false,
+      "prune": false
+    },
+    "tool_output": {
+      "max_lines": 5000,
+      "max_bytes": 204800
+    },
+    "experimental": {
+      "mcp_timeout": 120000
     }
-  },
-  "lsp": {},
-  "plugin": [
-    "opencode-intellisearch",
-    "@tarquinen/opencode-dcp@3.1.13",
-    "opencode-agent-memory"
-  ],
-  "compaction": {
-    "auto": false,
-    "prune": false
-  },
-  "tool_output": {
-    "max_lines": 5000,
-    "max_bytes": 204800
-  },
-  "experimental": {
-    "mcp_timeout": 120000
   }
 }

@@ -1,4 +1,4 @@
-"""Разбор DL v2.1 в AST.
+"""Разбор DL v2.2 в AST.
 
 Публичный API:
     parse(source: str, filename: str = "<input>") -> dict
@@ -80,6 +80,15 @@ def _split_interpolation(text: str) -> list[tuple[str, str] | tuple[str, list[st
     return parts
 
 
+def _import_node(path: str) -> dict:
+    """AST import-узла по строке пути (``import`` и ``imports [...]``)."""
+    parts = None
+    is_glob = "*" in path
+    if _INTERP_RE.search(path):
+        parts = _split_interpolation(path)
+    return {"kind": "import", "path": path, "parts": parts, "glob": is_glob}
+
+
 def _doc_text(token: Token) -> str:
     text = str(token)
     if text.startswith("///"):
@@ -119,6 +128,18 @@ def _document(
     }
 
 
+def _flake(
+    imports: list[dict],
+    outputs: dict,
+) -> dict:
+    """Создать AST flake-документа."""
+    return {
+        "kind": "flake",
+        "imports": imports,
+        "outputs": outputs,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Трансформер
 # ---------------------------------------------------------------------------
@@ -148,9 +169,11 @@ class DLTransformer(Transformer):
         fmt, body = items
         return _document("config", fmt.value, None, None, body)
 
-    def module_doc(self, items):
-        params, body = items
-        return _document("module", None, None, params, body)
+    def flake_doc(self, items):
+        # param_block "=>" block
+        params = items[0]
+        body = items[1]
+        return {"kind": "flake", "params": params, "body": body}
 
     def schema_doc(self, items):
         return _document("schema", None, None, None, items[0])
@@ -168,6 +191,9 @@ class DLTransformer(Transformer):
 
     def param_context(self, items):
         return {"name": "$", "optional": False, "default": None}
+
+    def param_config(self, items):
+        return {"name": "$config", "optional": False, "default": None}
 
     def param_plain(self, items):
         return {"name": items[0].value, "optional": False, "default": None}
@@ -238,6 +264,19 @@ class DLTransformer(Transformer):
         # Обёртка для альтернатив expr без собственного алиаса.
         return items[0]
 
+    def merge_expr(self, items):
+        # Левая ассоциативность: a & b & c = (a & b) & c
+        if len(items) == 1:
+            return items[0]
+        result = {"kind": "merge", "left": items[0], "right": items[1]}
+        for i in range(2, len(items)):
+            result = {"kind": "merge", "left": result, "right": items[i]}
+        return result
+
+    def primary(self, items):
+        # primary обёртка — возвращает сам элемент
+        return items[0]
+
     def string_lit(self, items):
         return {
             "kind": "string",
@@ -280,25 +319,62 @@ class DLTransformer(Transformer):
     def object(self, items):
         return {"kind": "object", "body": items[0]}
 
+    def _ref_to_name(self, ref_node: dict) -> str:
+        """Преобразовать ref-узел в строку имени для вызова.
+
+        ref_node: {"kind": "ref", "path": ["factory", "create"]}
+        Возвращает: "factory.create"
+        """
+        path = ref_node.get("path", [])
+        return ".".join(str(p) for p in path)
+
     def call_empty(self, items):
+        ref_node = items[0]
+        name = self._ref_to_name(ref_node)
         return {
             "kind": "call",
-            "name": items[0].value,
+            "name": name,
             "positional": [],
             "named": None,
         }
 
     def call(self, items):
-        name = items[0].value
+        ref_node = items[0]
+        name = self._ref_to_name(ref_node)
         args = items[1]
-        # Объект последним аргументом — это именованные аргументы (5.5).
-        if args and args[-1].get("kind") == "object":
-            return {
-                "kind": "call",
-                "name": name,
-                "positional": args[:-1],
-                "named": args[-1]["body"],
-            }
+        
+        # Проверяем последний аргумент на object или merge с object
+        if args:
+            last = args[-1]
+            last_kind = last.get("kind") if isinstance(last, dict) else None
+            
+            if last_kind == "object":
+                return {
+                    "kind": "call",
+                    "name": name,
+                    "positional": args[:-1],
+                    "named": last["body"],
+                }
+            elif last_kind == "merge":
+                # merge с object в правой части — именованные аргументы
+                right = last["right"]
+                if right.get("kind") == "object":
+                    return {
+                        "kind": "call",
+                        "name": name,
+                        "positional": args[:-1],
+                        "named": right["body"],
+                    }
+                # merge вида (makeoptions(...) & {...}) — вся конструкция именованные
+                # Проверяем левую часть рекурсивно
+                if last["left"].get("kind") == "object":
+                    return {
+                        "kind": "call",
+                        "name": name,
+                        "positional": args[:-1],
+                        "named": last["left"]["body"],
+                    }
+        
         return {"kind": "call", "name": name, "positional": args, "named": None}
 
     def args_more(self, items):
@@ -311,12 +387,7 @@ class DLTransformer(Transformer):
         return [items[0]]
 
     def import_expr(self, items):
-        path = items[0].value
-        parts = None
-        is_glob = "*" in path
-        if _INTERP_RE.search(path):
-            parts = _split_interpolation(path)
-        return {"kind": "import", "path": path, "parts": parts, "glob": is_glob}
+        return _import_node(items[0].value)
 
     def ref(self, items):
         return {"kind": "ref", "path": items[0]}
@@ -435,6 +506,25 @@ class DLTransformer(Transformer):
 
     def named_type(self, items):
         return {"kind": "named", "name": items[0].value}
+
+    # ── flake: import_stmt и imports ───────────────────────────────────────
+
+    def import_stmt(self, items):
+        # Инструкция `import ./mod.dl;` — обёртка над import_expr.
+        return {"kind": "import", "value": items[0]}
+
+    def imports_stmt(self, items):
+        # `imports [ ./a.dl; ./b.dl; ];` — список import-узлов.
+        return {"kind": "imports", "values": items[0] if items else []}
+
+    def import_list(self, items):
+        return list(items)
+
+    def import_item(self, items):
+        item = items[0]
+        if isinstance(item, Token):
+            return _import_node(item.value)
+        return item
 
 
 def _opt(items: list, index: int):

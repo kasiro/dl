@@ -1,19 +1,19 @@
-( $ ) => {
-    "lsp": {};
-    "plugin": [
+( $, $config ) => {
+    config.lsp = {};
+    config.plugin = [
         "opencode-intellisearch",
         "@tarquinen/opencode-dcp@3.1.13",
         "opencode-agent-memory"
     ];
-    "compaction": {
-        "auto": false;
-        "prune": false;
+    config.compaction = {
+        auto: false;
+        prune: false;
     };
-    "tool_output": {
-        "max_lines": 5000;
-        "max_bytes": 204800;
+    config.tool_output = {
+        max_lines: 5000;
+        max_bytes: 204800;
     };
-    "experimental": {
-        "mcp_timeout": 120000;
+    config.experimental = {
+        mcp_timeout: 120000;
     };
 }

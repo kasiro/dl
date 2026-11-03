@@ -10,6 +10,7 @@ import pytest
 from rich.console import Console
 
 from dl.cache import DiskCache
+from dl.evaluator import Function, call_value
 from dl.report import CACHED, BuildReporter, reset_reporter, set_reporter
 from dl.resolver import Resolver
 
@@ -18,6 +19,14 @@ def write(path: Path, text: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def load_value(resolver: Resolver, path: str, base_dir: Path) -> dict:
+    """Загрузить модуль и вызвать его (новая семантика: import → Function)."""
+    value = resolver.load(path, base_dir)
+    if isinstance(value, Function):
+        value = call_value(value, [], None, {}, base_dir)
+    return value
 
 
 def cache_files(directory: Path) -> list[Path]:
@@ -34,7 +43,7 @@ def test_second_resolver_reads_ast_from_disk(
     cache = DiskCache(tmp_path)
 
     first = Resolver(cache)
-    assert first.load("mod.dl", tmp_path) == {"value": 1}
+    assert load_value(first, "mod.dl", tmp_path) == {"value": 1}
     assert cache_files(tmp_path), "первый разбор записал AST в .__cache__"
 
     def forbidden(*args, **kwargs):
@@ -54,7 +63,7 @@ def test_second_resolver_reads_ast_from_disk(
 
     # Новый Resolver: in-memory пуст, значит AST берётся именно с диска.
     second = Resolver(cache)
-    assert second.load("mod.dl", tmp_path) == {"value": 1}
+    assert load_value(second, "mod.dl", tmp_path) == {"value": 1}
 
 
 def test_changed_file_invalidates_disk_cache(tmp_path: Path):
@@ -62,22 +71,22 @@ def test_changed_file_invalidates_disk_cache(tmp_path: Path):
     cache = DiskCache(tmp_path)
     resolver = Resolver(cache)
 
-    assert resolver.load("mod.dl", tmp_path) == {"value": 1}
+    assert load_value(resolver, "mod.dl", tmp_path) == {"value": 1}
 
     # Другой размер гарантирует другой отпечаток (mtime_ns на быстрых ФС
     # может совпасть с точностью до наносекунды).
     write(module, "json => { value: 222; }")
-    assert resolver.load("mod.dl", tmp_path) == {"value": 222}
+    assert load_value(resolver, "mod.dl", tmp_path) == {"value": 222}
 
     # И новый Resolver тоже видит пересчитанный AST, а не старый кэш.
     fresh = Resolver(cache)
-    assert fresh.load("mod.dl", tmp_path) == {"value": 222}
+    assert load_value(fresh, "mod.dl", tmp_path) == {"value": 222}
 
 
 def test_disk_hit_is_reported_as_cached(tmp_path: Path):
     write(tmp_path / "mod.dl", "json => { value: 1; }")
     cache = DiskCache(tmp_path)
-    assert Resolver(cache).load("mod.dl", tmp_path) == {"value": 1}
+    assert load_value(Resolver(cache), "mod.dl", tmp_path) == {"value": 1}
 
     stream = StringIO()
     reporter = BuildReporter(
@@ -86,7 +95,7 @@ def test_disk_hit_is_reported_as_cached(tmp_path: Path):
     reporter.start(tmp_path / "root.dl", tmp_path / "out.json")
     token = set_reporter(reporter)
     try:
-        assert Resolver(cache).load("mod.dl", tmp_path) == {"value": 1}
+        assert load_value(Resolver(cache), "mod.dl", tmp_path) == {"value": 1}
     finally:
         reset_reporter(token)
         reporter.finish()
@@ -102,20 +111,20 @@ def test_in_memory_cache_is_invalidated_by_change(tmp_path: Path):
     module = write(tmp_path / "mod.dl", "json => { value: 1; }")
     resolver = Resolver()  # без дискового кэша
 
-    assert resolver.load("mod.dl", tmp_path) == {"value": 1}
+    assert load_value(resolver, "mod.dl", tmp_path) == {"value": 1}
     write(module, "json => { value: 222; }")
-    assert resolver.load("mod.dl", tmp_path) == {"value": 222}
+    assert load_value(resolver, "mod.dl", tmp_path) == {"value": 222}
 
 
 def test_in_memory_hit_does_not_touch_disk(tmp_path: Path):
     write(tmp_path / "mod.dl", "json => { value: 1; }")
     resolver = Resolver()  # без дискового кэша
 
-    assert resolver.load("mod.dl", tmp_path) == {"value": 1}
+    assert load_value(resolver, "mod.dl", tmp_path) == {"value": 1}
     assert not (tmp_path / ".__cache__").exists()
 
     # Повторный вызов — из памяти; файл кэша по-прежнему не появился.
-    assert resolver.load("mod.dl", tmp_path) == {"value": 1}
+    assert load_value(resolver, "mod.dl", tmp_path) == {"value": 1}
     assert not (tmp_path / ".__cache__").exists()
 
 
@@ -124,8 +133,8 @@ def test_independent_resolvers_have_independent_memory(tmp_path: Path):
     first = Resolver()
     second = Resolver()
 
-    assert first.load("mod.dl", tmp_path) == {"value": 1}
-    assert second.load("mod.dl", tmp_path) == {"value": 1}
+    assert load_value(first, "mod.dl", tmp_path) == {"value": 1}
+    assert load_value(second, "mod.dl", tmp_path) == {"value": 1}
     assert first._cache and second._cache
 
 
@@ -141,9 +150,9 @@ def test_mtime_only_change_is_a_different_fingerprint(tmp_path: Path):
     module = write(tmp_path / "mod.dl", "json => { value: 1; }")
     resolver = Resolver()
 
-    assert resolver.load("mod.dl", tmp_path) == {"value": 1}
+    assert load_value(resolver, "mod.dl", tmp_path) == {"value": 1}
     before = os.stat(module)
     # Содержимое/размер те же, меняется только mtime_ns.
     os.utime(module, ns=(before.st_atime_ns, before.st_mtime_ns + 1_000_000))
-    assert resolver.load("mod.dl", tmp_path) == {"value": 1}
+    assert load_value(resolver, "mod.dl", tmp_path) == {"value": 1}
     assert len(resolver._cache) == 2

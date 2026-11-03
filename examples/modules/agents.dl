@@ -1,5 +1,54 @@
-( $ ) => {
-    let agents = import ../agents/agents.dl;
-
-    ...agents();
+( $, $config ) => {
+    config.agent = {
+        jarvis: {
+            permission: {
+                edit: { "*": "deny"; };
+                bash: { "*": "deny"; };
+                websearch: "deny";
+                webfetch: "deny";
+                "deepwiki_*": "deny";
+                "context7_*": "deny";
+                "lightpanda_*": "deny";
+            };
+        };
+        title: {
+            model: "opencode/big-pickle";
+        };
+        general: {
+            permission: {
+                edit: { "*": "allow"; };
+                bash: {
+                    "*": "allow";
+                    "*grep*": "deny";
+                    "*find*": "deny";
+                    "*npx*": "deny";
+                    "*npm*": "deny";
+                    "*sqlite*": "ask";
+                };
+                websearch: "deny";
+                webfetch: "deny";
+                skill: {
+                    "agent-delegation": "deny";
+                    "jarvis-cycles": "deny";
+                };
+            };
+            tools: {
+                "glob": false;
+                "grep": false;
+                "sequential-thinking_*": true;
+                "deepwiki_*": true;
+                "context7_*": true;
+                "lightpanda_*": true;
+                "memory_set": false;
+                "memory_replace": false;
+                "memory_list": false;
+            };
+        };
+        explore: {
+            disable: true;
+        };
+    };
+    config.agents = {
+        default: "general";
+    };
 }

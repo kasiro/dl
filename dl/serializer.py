@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import toml
 import yaml
 
-from .errors import FormatNotFoundError
+from .errors import FormatNotFoundError, ParseError
+
+if TYPE_CHECKING:
+    from .evaluator import Function
 
 FORMATS = ("json", "toml", "yaml")
 
@@ -37,7 +40,24 @@ def normalize_format(value: str | None) -> str | None:
 
 
 def serialize(value: dict, format: str | None = None) -> str:
-    """Сериализовать словарь в заданный формат (``E005`` при неизвестном)."""
+    """Сериализовать словарь в заданный формат (``E005`` при неизвестном).
+    
+    Если передан Function — ошибка (нужно вызвать collect()).
+    """
+    from .evaluator import Function
+    
+    if isinstance(value, Function):
+        raise ParseError(
+            "E006 ParseError: value is a Function (module); "
+            "use dl.modules.collect() to assemble the configuration"
+        )
+    
+    if not isinstance(value, dict):
+        raise ParseError(
+            f"E006 ParseError: expected dict for serialization, "
+            f"got {type(value).__name__}"
+        )
+    
     fmt = normalize_format(format)
     if fmt is None:
         raise FormatNotFoundError(

@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 
 from dl.errors import GlobParameterizedModule
-from dl.evaluator import evaluate_file
+from dl.evaluator import Function, call_value, evaluate_file
 from dl.resolver import Resolver
 
 
@@ -15,6 +15,13 @@ def write(path: Path, text: str) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
     return path
+
+
+def eval_config(path: Path) -> dict:
+    """Вычислить config-документ (новая семантика: evaluate → Function)."""
+    value = evaluate_file(path)
+    assert isinstance(value, Function)
+    return call_value(value, [], None, {}, path.parent)
 
 
 # ─────────────────────────── базовые тесты ───────────────────────────────
@@ -27,7 +34,7 @@ def test_glob_import_empty_directory(tmp_path: Path):
         tmp_path / "config.dl",
         "json => { models: import ./empty/*.dl; }",
     )
-    result = evaluate_file(config)
+    result = eval_config(config)
     assert result == {"models": {}}
 
 
@@ -42,7 +49,7 @@ def test_glob_import_single_file(tmp_path: Path):
         tmp_path / "config.dl",
         "json => { models: import ./mods/*.dl; }",
     )
-    result = evaluate_file(config)
+    result = eval_config(config)
     assert result == {"models": {"value": 1}}
 
 
@@ -61,7 +68,7 @@ def test_glob_import_merge_multiple_files(tmp_path: Path):
         tmp_path / "config.dl",
         "json => { models: import ./mods/*.dl; }",
     )
-    result = evaluate_file(config)
+    result = eval_config(config)
     assert result == {"models": {"a": 1, "b": 2}}
 
 
@@ -84,7 +91,7 @@ def test_glob_import_sorted_deterministically(tmp_path: Path):
         tmp_path / "config.dl",
         "json => { models: import ./mods/*.dl; }",
     )
-    result = evaluate_file(config)
+    result = eval_config(config)
     # Слияние детерминировано, порядок a, m, z
     assert result == {"models": {"a": 1, "m": 13, "z": 26}}
 
@@ -104,7 +111,7 @@ def test_glob_import_subdirectory(tmp_path: Path):
         tmp_path / "config.dl",
         "json => { models: import ./mods/*.dl; }",
     )
-    result = evaluate_file(config)
+    result = eval_config(config)
     assert result == {"models": {"first": 1, "second": 2}}
 
 
@@ -119,7 +126,7 @@ def test_glob_import_parameterized_module_error(tmp_path: Path):
         "json => { models: import ./*.dl; }",
     )
     with pytest.raises(GlobParameterizedModule) as info:
-        evaluate_file(config)
+        eval_config(config)
     assert "E014" in str(info.value)
 
 
@@ -141,7 +148,7 @@ def test_glob_import_conflict_error(tmp_path: Path):
     from dl.errors import ConflictError
 
     with pytest.raises(ConflictError) as info:
-        evaluate_file(config)
+        eval_config(config)
     assert "E003" in str(info.value)
 
 
@@ -163,7 +170,7 @@ def test_glob_import_same_value_warning(tmp_path: Path, caplog):
     import logging
 
     with caplog.at_level(logging.WARNING, logger="dl"):
-        result = evaluate_file(config)
+        result = eval_config(config)
     assert result == {"models": {"value": 42}}
     assert "W001" in caplog.text
 
@@ -183,7 +190,7 @@ def test_glob_import_nested_object_merge(tmp_path: Path):
         tmp_path / "config.dl",
         "json => { models: import ./mods/*.dl; }",
     )
-    result = evaluate_file(config)
+    result = eval_config(config)
     assert result == {"models": {"config": {"a": 1, "b": 2}}}
 
 
@@ -207,7 +214,7 @@ def test_glob_import_with_interpolation(tmp_path: Path):
         }
         """,
     )
-    result = evaluate_file(config)
+    result = eval_config(config)
     assert "models" in result
     assert "localproxy" in result["models"]
     assert "openai" in result["models"]

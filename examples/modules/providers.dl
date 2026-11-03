@@ -1,11 +1,38 @@
-( $ ) => {
-    let localproxy = import ../providers/entries/localproxy.dl;
-    let deepseek = import ../providers/entries/deepseek-proxy.dl;
-    let zenfree = import ../providers/entries/zen-free.dl;
+( $, $config ) => {
+    let factory = import ../factories/provider.dl;
+    let makeoptions = import ../factories/makeoptions.dl;
 
-    provider: {
-        ...localproxy();
-        ...deepseek();
-        ...zenfree();
+    $config.providers = {
+        localproxy: factory("localproxy", $.npm.openaicomp, 9625, {
+            models: {
+                "free-gemini-2.5-pro": { name: "free-gemini-2.5-pro"; };
+                "free-minimax-m2.7": { name: "free-minimax-m2.7"; };
+                "free-claude-haiku-4-5-20251001": { name: "free-claude-haiku-4-5-20251001"; };
+                "free-gemini-2.5-flash": { name: "free-gemini-2.5-flash"; };
+                "free-qwen3.5-plus": { name: "free-qwen3.5-plus"; };
+                "free-qwen3.5-flash": { name: "free-qwen3.5-flash"; };
+                "free-minimax-m2.5": { name: "free-minimax-m2.5"; };
+                "free-gemini-2.5-flash-lite": { name: "free-gemini-2.5-flash-lite"; };
+                "free-gemini-3-flash-preview": { name: "free-gemini-3-flash-preview"; };
+            };
+        });
+        deepseek-proxy: {
+            npm: $.npm.voidrot;
+            name: "deepseek-proxy";
+            options: makeoptions(9626) & {
+                toolCallFallback: "auto";
+                useCompletionUrls: true;
+            };
+            models: {
+                "deepseek/deepseek-v4.1-flash": { name: "deepseek/deepseek-v4.1-flash"; };
+            };
+        };
+        zen-free: factory("zen-free", $.npm.openaicomp, 9627, {
+            models: {
+                "deepseek-v4-flash-free": { name: "deepseek-v4-flash-free"; };
+                "big-pickle": { name: "big-pickle"; };
+                "mimo-v2.6-flash-free": { name: "mimo-v2.6-flash-free"; };
+            };
+        });
     };
 }

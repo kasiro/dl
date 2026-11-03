@@ -1,7 +1,0 @@
-( $ ) => {
-    default_agent: "jarvis";
-    instructions: [
-        "~/.config/opencode/global-rules.md"
-    ];
-    share: "disabled";
-}

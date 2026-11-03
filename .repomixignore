@@ -1,0 +1,14 @@
+.__cache__
+__pycache__
+.venv
+.pytest_cache
+.opencode
+zed-dl
+tests
+repomix.config.json
+.python-version
+.gitignore
+README.md
+uv.lock
+.repomixignore
+dl_lsp

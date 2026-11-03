@@ -156,17 +156,17 @@ def test_clear_removes_only_cache_files(tmp_path: Path):
 # ──────────────────────────────── CLI-флаги ─────────────────────────────────
 
 
-def test_compile_uses_cache_by_default(
+def test_build_uses_cache_by_default(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ):
     write(tmp_path / "mod.dl", "json => { value: 1; }")
     write(
         tmp_path / "doc.dl",
-        "json => { let m = import ./mod.dl; nested: m; }",
+        "json => { let m = import ./mod.dl; nested: m(); }",
     )
     monkeypatch.chdir(tmp_path)
 
-    assert main(["compile", "doc.dl"]) == 0
+    assert main(["build", "doc.dl"]) == 0
     assert cache_files(tmp_path), "по умолчанию импорт пишется в .__cache__"
 
 
@@ -176,11 +176,11 @@ def test_no_cache_does_not_create_directory(
     write(tmp_path / "mod.dl", "json => { value: 1; }")
     write(
         tmp_path / "doc.dl",
-        "json => { let m = import ./mod.dl; nested: m; }",
+        "json => { let m = import ./mod.dl; nested: m(); }",
     )
     monkeypatch.chdir(tmp_path)
 
-    assert main(["compile", "doc.dl", "--no-cache"]) == 0
+    assert main(["build", "doc.dl", "--no-cache"]) == 0
     assert not (tmp_path / CACHE_DIR_NAME).exists()
 
 
@@ -190,7 +190,7 @@ def test_eval_no_cache_does_not_create_directory(
     write(tmp_path / "mod.dl", "json => { value: 1; }")
     write(
         tmp_path / "doc.dl",
-        "json => { let m = import ./mod.dl; nested: m; }",
+        "json => { let m = import ./mod.dl; nested: m(); }",
     )
     monkeypatch.chdir(tmp_path)
     capsys.readouterr()

@@ -1,8 +1,0 @@
-( $ ) => {
-    let deepseek = import ../deepseek-proxy.dl;
-
-    deepseek-proxy: deepseek('deepseek-proxy', {
-        npm: $.npm.voidrot;
-        port: 9626;
-    });
-}

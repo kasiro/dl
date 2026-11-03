@@ -1,8 +1,0 @@
-( $ ) => {
-    let createprovider = import ../createprovider.dl;
-
-    localproxy: createprovider('localproxy', {
-        npm: $.npm.openaicomp;
-        port: 9625;
-    });
-}

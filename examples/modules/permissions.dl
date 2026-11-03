@@ -1,5 +1,5 @@
-( $ ) => {
-    permission: {
+( $, $config ) => {
+    config.permission = {
         bash: {
             "*find*": "deny";
             "*grep*": "deny";
