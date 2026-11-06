@@ -1,0 +1,21 @@
+# Модуль разрешений
+{ lib
+, settings
+, factories
+, ...
+}:
+
+{
+  permission = {
+    bash = {
+      "*find*" = "deny";
+      "*grep*" = "deny";
+      "*npm*" = "deny";
+      "*sqlite*" = "ask";
+      "*opencode*" = "ask";
+    };
+    glob = "deny";
+    grep = "deny";
+    websearch = "deny";
+  };
+}

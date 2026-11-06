@@ -1,0 +1,24 @@
+# Модуль MCP серверов
+{ lib
+, settings
+, factories
+, ...
+}:
+
+{
+  mcp = {
+    deepwiki = factories.server "deepwiki" "remote" "https://mcp.deepwiki.com/mcp" null { } 120000;
+
+    sequential-thinking = factories.server "sequential-thinking" "local" null [ "/home/kasiro/.npm-global/bin/mcp-server-sequential-thinking" ] { } 120000;
+
+    context7 = factories.server "context7" "remote" "https://mcp.context7.com/mcp" null {
+      Authorization = "Bearer ctx7sk-418a5f6a-2b9c-4caa-94e2-573821193500";
+    } 120000;
+
+    lightpanda = factories.server "lightpanda" "local" null [ "/home/kasiro/.npm-global/bin/lightpanda-mcp" ] {
+      LIGHTPANDA_DISABLE_TELEMETRY = "true";
+    } 60000;
+
+    deploychan = factories.server "deploychan" "remote" "https://mcp.deploychan.webcam/mcp" null { } 120000;
+  };
+}

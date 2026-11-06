@@ -1,0 +1,30 @@
+# Модуль runtime настроек
+{ lib
+, settings
+, factories
+, ...
+}:
+
+{
+  lsp = { };
+
+  plugin = [
+    "opencode-intellisearch"
+    "@tarquinen/opencode-dcp@3.1.13"
+    "opencode-agent-memory"
+  ];
+
+  compaction = {
+    auto = false;
+    prune = false;
+  };
+
+  tool_output = {
+    max_lines = 5000;
+    max_bytes = 204800;
+  };
+
+  experimental = {
+    mcp_timeout = 120000;
+  };
+}
